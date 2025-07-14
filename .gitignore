@@ -211,3 +211,7 @@ __marimo__/
 
 /img
 main.py
+/.idea
+*.png
+*.task
+*.xml

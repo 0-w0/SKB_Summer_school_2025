@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import font
-import cv2
 from PIL import Image, ImageTk
 import time
 import cv2
