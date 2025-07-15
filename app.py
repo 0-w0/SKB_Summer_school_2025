@@ -4,10 +4,6 @@ from PIL import Image, ImageTk
 import time
 import cv2
 import mediapipe as mp
-from mediapipe import solutions
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
-from mediapipe.framework.formats import landmark_pb2
 
 
 class VideoApp(tk.Tk):
@@ -15,10 +11,15 @@ class VideoApp(tk.Tk):
     def __init__(self, window_title="Видео Приложение"):
 
         self.cords_to_draw = set()
-        self.base_options = python.BaseOptions(model_asset_path='gesture_recognizer.task')
-        self.options = vision.GestureRecognizerOptions(base_options=self.base_options)
-        self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
-        print(self.recognizer)
+
+        self.mp_drawing = mp.solutions.drawing_utils
+        self.mp_drawing_styles = mp.solutions.drawing_styles
+        self.mp_hands = mp.solutions.hands
+        self.recognizer = self.mp_hands.Hands(
+            max_num_hands=1,
+            model_complexity=0,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5)
 
         super().__init__()
         self.title(window_title)
@@ -124,40 +125,40 @@ class VideoApp(tk.Tk):
 
     def process_frame(self, frame):
         frame = cv2.flip(frame, 1)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame_shape = frame.shape
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        recognition_result = self.recognizer.recognize(image)
-        if len(recognition_result.gestures):
-            top_gesture = recognition_result.gestures[0][0]
-            hand_landmarks = recognition_result.hand_landmarks
 
-            if top_gesture.category_name == 'Pointing_Up' and self.is_drawing_mode == True:
-                x = int(hand_landmarks[0][8].x * frame_shape[1])
-                y = int(hand_landmarks[0][8].y * frame_shape[0])
-                self.cords_to_draw.add((x, y))
-            elif top_gesture.category_name == 'Pointing_Up' and self.is_drawing_mode == False:
-                cords_to_remove = set()
-                x = int(hand_landmarks[0][8].x * frame_shape[1])
-                y = int(hand_landmarks[0][8].y * frame_shape[0])
-                for x_r, y_r in self.cords_to_draw:
-                    if abs(x - x_r) + abs(y - y_r) <= 15:
-                        cords_to_remove.add((x_r, y_r))
-                for cord in cords_to_remove:
-                    self.cords_to_draw.remove(cord)
+        results = self.recognizer.process(frame)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-            hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
-            hand_landmarks_proto.landmark.extend([
-                landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y,
-                                                z=landmark.z) for landmark in
-                hand_landmarks[0]
-            ])
-            solutions.drawing_utils.draw_landmarks(
-                frame,
-                hand_landmarks_proto,
-                solutions.hands.HAND_CONNECTIONS,
-                solutions.drawing_styles.get_default_hand_landmarks_style(),
-                solutions.drawing_styles.get_default_hand_connections_style())
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                self.mp_drawing.draw_landmarks(
+                    frame,
+                    hand_landmarks,
+                    self.mp_hands.HAND_CONNECTIONS,
+                    self.mp_drawing_styles.get_default_hand_landmarks_style(),
+                    self.mp_drawing_styles.get_default_hand_connections_style())
+
+                landmarks_list = list(hand_landmarks.landmark)
+
+                x_8 = int(landmarks_list[8].x * frame_shape[1])
+                x_4 = int(landmarks_list[4].x * frame_shape[1])
+                y_8 = int(landmarks_list[8].y * frame_shape[0])
+                y_4 = int(landmarks_list[4].y * frame_shape[0])
+                av_x = (x_4 + x_8) // 2
+                av_y = (y_4 + y_8) // 2
+                if abs(x_4-x_8)+abs(y_4-y_8) <= 35:
+                    if self.is_drawing_mode == True:
+                        self.cords_to_draw.add((av_x, av_y))
+                    else:
+                        cords_to_remove = set()
+                        for x_r, y_r in self.cords_to_draw:
+                            if abs(av_x - x_r) + abs(av_y - y_r) <= 15:
+                                cords_to_remove.add((x_r, y_r))
+                        for cord in cords_to_remove:
+                            self.cords_to_draw.remove(cord)
+
 
         for cord in self.cords_to_draw:
             cv2.circle(frame, cord, radius=0, color=(255, 0, 255), thickness=15)
