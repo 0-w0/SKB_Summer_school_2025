@@ -56,6 +56,15 @@ class VideoApp(tk.Tk):
 
         self.save_button.place(relx=0.98, y=50, anchor='ne')
 
+        self.clean_button = tk.Button(
+            self,
+            text="Очистить",
+            font=button_font,
+            command=self.clean_board
+        )
+
+        self.clean_button.place(relx=0.98, y=90, anchor='ne')
+
         self.update_frame()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
@@ -103,6 +112,9 @@ class VideoApp(tk.Tk):
             print(f"Изображение сохранено как {filename}")
         else:
             print("Не удалось сохранить изображение, кадр отсутствует.")
+
+    def clean_board(self):
+        self.cords_to_draw = set()
 
     def on_closing(self):
         print("Закрытие приложения...")
